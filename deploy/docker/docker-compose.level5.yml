@@ -1,0 +1,245 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════════
+# bolt.diy × DTE — Level 5 (True Autonomy) Production Deployment
+# ═══════════════════════════════════════════════════════════════════
+#
+# System 5 Tetradic Architecture:
+#   Lucy (GGUF)  ←→  bolt.diy (Cognitive)  ←→  Prometheus  ←→  Grafana
+#       ↕                    ↕                       ↕
+#   llama.cpp        AutonomyLifecycle        TelemetryShell
+#                    + Echobeats 12-step      + S-gram energy
+#                    + RLS online learning    + AAR coherence
+#                    + SelfModification       + Dead man switch
+#
+# Usage:
+#   1. Place lucy_128k-Q4_K_M.gguf in ./models/
+#   2. cp .env.example .env && edit .env
+#   3. docker compose -f docker-compose.level5.yml up -d
+#   4. curl http://localhost:8081/health  (Lucy)
+#   5. curl http://localhost:5173         (bolt.diy)
+#   6. curl http://localhost:9464/metrics (Telemetry)
+#   7. http://localhost:3001              (Grafana dashboard)
+#
+# ═══════════════════════════════════════════════════════════════════
+
+services:
+
+  # ─── Lucy Inference Server (llama.cpp) ───────────────────────────
+  # Serves the lucy_128k-Q4_K_M.gguf model via OpenAI-compatible API.
+  # Reservoir-modulated system prompts are injected by the cognitive
+  # provider at inference time.
+  lucy:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: dte-lucy
+    restart: unless-stopped
+    ports:
+      - "${LUCY_PORT:-8081}:8080"
+    volumes:
+      - ./models:/models:ro
+      - lucy-cache:/root/.cache
+    command: >
+      --model /models/${LUCY_MODEL_FILE:-lucy_128k-Q4_K_M.gguf}
+      --host 0.0.0.0
+      --port 8080
+      --ctx-size ${LUCY_CTX_SIZE:-32768}
+      --threads ${LUCY_THREADS:-4}
+      --batch-size ${LUCY_BATCH_SIZE:-512}
+      --n-predict ${LUCY_MAX_PREDICT:-2048}
+      --parallel ${LUCY_PARALLEL:-1}
+      --cont-batching
+      --flash-attn
+      --mlock
+      --log-disable
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: ${LUCY_MEM_LIMIT:-6G}
+        reservations:
+          memory: ${LUCY_MEM_RESERVE:-3G}
+    networks:
+      - dte-net
+
+  # ─── Lucy GPU Variant (CUDA) ─────────────────────────────────────
+  # Uncomment this service and comment out `lucy` above for GPU mode.
+  # Requires NVIDIA Container Toolkit installed on the host.
+  # lucy-gpu:
+  #   image: ghcr.io/ggerganov/llama.cpp:server-cuda
+  #   container_name: dte-lucy-gpu
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${LUCY_PORT:-8081}:8080"
+  #   volumes:
+  #     - ./models:/models:ro
+  #     - lucy-cache:/root/.cache
+  #   command: >
+  #     --model /models/${LUCY_MODEL_FILE:-lucy_128k-Q4_K_M.gguf}
+  #     --host 0.0.0.0
+  #     --port 8080
+  #     --ctx-size ${LUCY_CTX_SIZE:-65536}
+  #     --threads ${LUCY_THREADS:-4}
+  #     --batch-size ${LUCY_BATCH_SIZE:-2048}
+  #     --n-predict ${LUCY_MAX_PREDICT:-4096}
+  #     --parallel ${LUCY_PARALLEL:-2}
+  #     --n-gpu-layers ${LUCY_GPU_LAYERS:-99}
+  #     --cont-batching
+  #     --flash-attn
+  #     --mlock
+  #     --log-disable
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 120s
+  #   networks:
+  #     - dte-net
+
+  # ─── bolt.diy (Cognitive Runtime) ────────────────────────────────
+  # The main application with the Level 5 autonomy stack wired in.
+  # The cognitive daemon runs alongside the Remix web server.
+  bolt:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: bolt-ai-production
+    container_name: dte-bolt
+    restart: unless-stopped
+    depends_on:
+      lucy:
+        condition: service_healthy
+    ports:
+      - "${BOLT_PORT:-5173}:5173"
+      - "${TELEMETRY_PORT:-9464}:9464"
+    volumes:
+      - bolt-state:/app/state
+      - bolt-logs:/app/logs
+    env_file:
+      - ../../.env
+      - ../../.env.local
+    environment:
+      # ── Node / Remix ──
+      NODE_ENV: production
+      RUNNING_IN_DOCKER: "true"
+      PORT: 5173
+      # ── Lucy Connection ──
+      LUCY_BASE_URL: http://lucy:8080
+      LUCY_MODEL_NAME: ${LUCY_MODEL_NAME:-lucy_128k-Q4_K_M}
+      LUCY_HEALTH_INTERVAL_MS: ${LUCY_HEALTH_INTERVAL_MS:-30000}
+      # ── Cognitive State Persistence ──
+      IDENTITY_STATE_DIR: /app/state/identity
+      RESERVOIR_STATE_DIR: /app/state/reservoir
+      MEMORY_STATE_DIR: /app/state/memory
+      MODIFICATION_LOG_DIR: /app/state/modifications
+      # ── Autonomy Pipeline ──
+      ENABLE_AUTONOMY_PIPELINE: "true"
+      ENABLE_ECHOBEATS: "true"
+      ENABLE_ONLINE_LEARNING: "true"
+      ENABLE_SELF_MODIFICATION: "true"
+      ENABLE_PROACTIVE_PERCEPTION: "true"
+      # ── Echobeats Configuration ──
+      ECHOBEATS_INTERVAL_MS: ${ECHOBEATS_INTERVAL_MS:-2000}
+      ECHOBEATS_NUM_STREAMS: ${ECHOBEATS_NUM_STREAMS:-3}
+      ECHOBEATS_ENABLE_SYSTEM5: "true"
+      # ── Reservoir Configuration ──
+      RESERVOIR_UNITS: ${RESERVOIR_UNITS:-256}
+      RESERVOIR_SPECTRAL_RADIUS: ${RESERVOIR_SPECTRAL_RADIUS:-0.95}
+      RESERVOIR_LEAKING_RATE: ${RESERVOIR_LEAKING_RATE:-0.3}
+      RESERVOIR_INPUT_SCALING: ${RESERVOIR_INPUT_SCALING:-0.5}
+      # ── RLS Online Learning ──
+      RLS_FORGETTING_FACTOR: ${RLS_FORGETTING_FACTOR:-0.995}
+      RLS_REGULARIZATION: ${RLS_REGULARIZATION:-0.01}
+      # ── Self-Modification Safety ──
+      SELFMOD_MAX_PER_MINUTE: ${SELFMOD_MAX_PER_MINUTE:-10}
+      SELFMOD_DEAD_MAN_THRESHOLD: ${SELFMOD_DEAD_MAN_THRESHOLD:-0.2}
+      SELFMOD_COOLDOWN_MS: ${SELFMOD_COOLDOWN_MS:-60000}
+      # ── Telemetry ──
+      TELEMETRY_ENABLED: "true"
+      TELEMETRY_PORT: 9464
+      TELEMETRY_INTERVAL_MS: ${TELEMETRY_INTERVAL_MS:-5000}
+      # ── API Keys (fallback providers) ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPEN_ROUTER_API_KEY: ${OPEN_ROUTER_API_KEY:-}
+      # ── Logging ──
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      VITE_LOG_LEVEL: ${VITE_LOG_LEVEL:-debug}
+    command: pnpm run dockerstart
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - dte-net
+
+  # ─── Prometheus (Metrics Collection) ─────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: dte-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../config/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - dte-net
+
+  # ─── Grafana (Dashboard) ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: dte-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ../config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-dte-level5}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/dte-system5.json
+    depends_on:
+      - prometheus
+    networks:
+      - dte-net
+
+volumes:
+  lucy-cache:
+    driver: local
+  bolt-state:
+    driver: local
+  bolt-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  dte-net:
+    name: dte-level5-network
+    driver: bridge

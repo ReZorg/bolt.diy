@@ -1,0 +1,145 @@
+# ═══════════════════════════════════════════════════════════════════
+# Prometheus Alerting Rules — DTE Level 5 Safety Monitoring
+# ═══════════════════════════════════════════════════════════════════
+
+groups:
+  - name: dte_safety
+    rules:
+      # ── Dead Man's Switch ────────────────────────────────────────
+      - alert: DTEDeadManSwitchActive
+        expr: dte_selfmod_dead_man_active == 1
+        for: 0s
+        labels:
+          severity: critical
+        annotations:
+          summary: "DTE Dead Man's Switch is ACTIVE"
+          description: "Coherence collapsed below threshold. All parameters reset to defaults. Modifications locked."
+
+      # ── Coherence Collapse ───────────────────────────────────────
+      - alert: DTECoherenceCollapse
+        expr: dte_lifecycle_coherence < 0.2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DTE coherence below critical threshold ({{ $value }})"
+          description: "Lifecycle coherence has been below 0.2 for over 1 minute."
+
+      - alert: DTECoherenceLow
+        expr: dte_lifecycle_coherence < 0.4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DTE coherence is low ({{ $value }})"
+          description: "Lifecycle coherence has been below 0.4 for over 5 minutes."
+
+      # ── Lucy Health ──────────────────────────────────────────────
+      - alert: DTELucyUnhealthy
+        expr: dte_lucy_healthy == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lucy inference server is unhealthy"
+          description: "The Lucy GGUF server has been unreachable for 30 seconds."
+
+      - alert: DTELucyHighErrorRate
+        expr: rate(dte_lucy_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lucy inference error rate elevated ({{ $value }}/s)"
+          description: "Lucy is producing errors at > 0.1/s for the last 2 minutes."
+
+      # ── Reservoir Stability ──────────────────────────────────────
+      - alert: DTEReservoirSaturated
+        expr: dte_reservoir_energy > 0.95
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reservoir energy saturated ({{ $value }})"
+          description: "Reservoir state vector energy is near 1.0, indicating potential instability."
+
+      - alert: DTEReservoirDepleted
+        expr: dte_reservoir_energy < 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reservoir energy depleted ({{ $value }})"
+          description: "Reservoir state vector energy is near 0, indicating loss of dynamics."
+
+      # ── RLS Convergence ──────────────────────────────────────────
+      - alert: DTERLSHighError
+        expr: dte_rls_prediction_error > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RLS prediction error is high ({{ $value }})"
+          description: "The online learner has not converged — prediction error above 0.8 for 5 minutes."
+
+      - alert: DTERLSWeightExplosion
+        expr: dte_rls_weight_norm > 100
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RLS weight explosion detected (norm={{ $value }})"
+          description: "Readout weight norm exceeding 100 — potential numerical instability."
+
+      # ── Self-Modification Rate ───────────────────────────────────
+      - alert: DTESelfModHighRate
+        expr: dte_selfmod_rate_per_minute > 8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Self-modification rate is high ({{ $value }}/min)"
+          description: "Approaching the rate limit — system may be oscillating."
+
+      # ── Echobeats Sync ──────────────────────────────────────────
+      - alert: DTEEchobeatsStalled
+        expr: rate(dte_echobeats_global_step[1m]) == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Echobeats has stalled"
+          description: "No Echobeats ticks in the last minute — cognitive cycle is frozen."
+
+      - alert: DTEEchobeatsDesync
+        expr: |
+          abs(dte_echobeats_stream_coherence{stream="0"} - dte_echobeats_stream_coherence{stream="1"}) > 0.5
+          or abs(dte_echobeats_stream_coherence{stream="1"} - dte_echobeats_stream_coherence{stream="2"}) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Echobeats streams are desynchronized"
+          description: "Stream coherence values have diverged by more than 0.5."
+
+  - name: dte_performance
+    rules:
+      # ── Inference Performance ────────────────────────────────────
+      - alert: DTELucySlowInference
+        expr: dte_lucy_tokens_per_second < 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lucy inference is slow ({{ $value }} tok/s)"
+          description: "Token generation rate below 5/s for 5 minutes."
+
+      # ── Daemon Health ────────────────────────────────────────────
+      - alert: DTEDaemonDown
+        expr: dte_running == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "DTE Cognitive Daemon is not running"
+          description: "The Level 5 daemon has stopped."

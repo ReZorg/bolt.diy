@@ -95,3 +95,17 @@ export {
   type DevelopmentalCycleResult,
   type Level5Config,
 } from './autonomy-lifecycle';
+
+// Cognitive Daemon (Production Entry Point)
+export {
+  CognitiveDaemon,
+  getCognitiveDaemon,
+  maybeStartDaemon,
+  type DaemonConfig,
+} from './daemon';
+
+// System5 Telemetry Shell (Prometheus Metrics)
+export {
+  System5TelemetryShell,
+  type TelemetryConfig,
+} from './telemetry-shell';

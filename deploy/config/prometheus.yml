@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════════
+# Prometheus Configuration — DTE Level 5 Telemetry
+# ═══════════════════════════════════════════════════════════════════
+
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+  scrape_timeout: 5s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  # ── DTE System5 Telemetry Shell ──────────────────────────────────
+  - job_name: 'dte-telemetry'
+    static_configs:
+      - targets: ['bolt:9464']
+        labels:
+          instance: 'dte-bolt'
+          system: 'level5'
+    scrape_interval: 5s
+    metrics_path: /metrics
+
+  # ── Lucy Inference Server ────────────────────────────────────────
+  # llama.cpp exposes /metrics natively when built with LLAMA_METRICS
+  - job_name: 'dte-lucy'
+    static_configs:
+      - targets: ['lucy:8080']
+        labels:
+          instance: 'dte-lucy'
+          system: 'level5'
+    scrape_interval: 15s
+    metrics_path: /metrics
+
+  # ── Prometheus Self-Monitoring ───────────────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

@@ -1,0 +1,236 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "title": "System 5 Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "title": "Autonomy Level",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+      "targets": [{ "expr": "dte_autonomy_level", "legendFormat": "Level" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 3 },
+              { "color": "green", "value": 5 }
+            ]
+          },
+          "unit": "none",
+          "min": 0,
+          "max": 5
+        }
+      }
+    },
+    {
+      "title": "Uptime",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "targets": [{ "expr": "dte_uptime_seconds", "legendFormat": "Uptime" }],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "title": "Lucy Health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "targets": [{ "expr": "dte_lucy_healthy", "legendFormat": "Healthy" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "UNHEALTHY", "color": "red" }, "1": { "text": "HEALTHY", "color": "green" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Identity Stage",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "targets": [{ "expr": "dte_identity_stage", "legendFormat": "Stage" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": {
+              "0": { "text": "Embryonic" }, "1": { "text": "Infant" },
+              "2": { "text": "Child" }, "3": { "text": "Adolescent" },
+              "4": { "text": "Adult" }, "5": { "text": "Elder" }
+            }}
+          ]
+        }
+      }
+    },
+    {
+      "title": "Dead Man's Switch",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "targets": [{ "expr": "dte_selfmod_dead_man_active", "legendFormat": "Active" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "SAFE", "color": "green" }, "1": { "text": "ACTIVE", "color": "red" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Lifecycle Coherence",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 4, "x": 15, "y": 1 },
+      "targets": [{ "expr": "dte_lifecycle_coherence", "legendFormat": "Coherence" }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 0.7 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Lifecycle Cycles",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 5, "x": 19, "y": 1 },
+      "targets": [{ "expr": "dte_lifecycle_cycles_total", "legendFormat": "Cycles" }]
+    },
+    {
+      "title": "Echobeats",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+    {
+      "title": "Echobeats Coherence (3 Streams)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "dte_echobeats_stream_coherence{stream=\"0\"}", "legendFormat": "Stream 0 (Process)" },
+        { "expr": "dte_echobeats_stream_coherence{stream=\"1\"}", "legendFormat": "Stream 1 (Org)" },
+        { "expr": "dte_echobeats_stream_coherence{stream=\"2\"}", "legendFormat": "Stream 2 (Global)" },
+        { "expr": "dte_echobeats_coherence", "legendFormat": "Average" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "title": "Echobeats Energy + S-gram Flow",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "dte_echobeats_stream_energy{stream=\"0\"}", "legendFormat": "Stream 0 Energy" },
+        { "expr": "dte_echobeats_stream_energy{stream=\"1\"}", "legendFormat": "Stream 1 Energy" },
+        { "expr": "dte_echobeats_stream_energy{stream=\"2\"}", "legendFormat": "Stream 2 Energy" },
+        { "expr": "dte_energy_flow_value", "legendFormat": "S-gram [1,4,2,8,5,7]" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "title": "Reservoir & AAR",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+    {
+      "title": "Reservoir Energy (Fast + Slow)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "targets": [
+        { "expr": "dte_reservoir_energy", "legendFormat": "Fast State Energy" },
+        { "expr": "dte_reservoir_slow_energy", "legendFormat": "Slow State Energy" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "title": "AAR Coherence",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "targets": [
+        { "expr": "dte_aar_coherence", "legendFormat": "AAR Average" },
+        { "expr": "dte_lifecycle_coherence", "legendFormat": "Lifecycle" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "title": "Online Learning (RLS)",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false
+    },
+    {
+      "title": "RLS Prediction Error",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "dte_rls_prediction_error", "legendFormat": "Prediction Error" }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "unit": "none" } }
+    },
+    {
+      "title": "RLS Weight Norm",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "targets": [
+        { "expr": "dte_rls_weight_norm", "legendFormat": "Weight Norm" }
+      ]
+    },
+    {
+      "title": "RLS Learning Rate & Updates",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        { "expr": "dte_rls_learning_rate", "legendFormat": "Learning Rate" },
+        { "expr": "rate(dte_rls_updates_total[1m])", "legendFormat": "Updates/min" }
+      ]
+    },
+    {
+      "title": "Self-Modification",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "collapsed": false
+    },
+    {
+      "title": "Modification Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
+      "targets": [
+        { "expr": "dte_selfmod_rate_per_minute", "legendFormat": "Mods/min" },
+        { "expr": "rate(dte_selfmod_applied_total[5m]) * 60", "legendFormat": "Applied/min (5m avg)" },
+        { "expr": "rate(dte_selfmod_rejected_total[5m]) * 60", "legendFormat": "Rejected/min (5m avg)" }
+      ]
+    },
+    {
+      "title": "Lucy Inference",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
+      "targets": [
+        { "expr": "dte_lucy_tokens_per_second", "legendFormat": "Tokens/sec" },
+        { "expr": "rate(dte_lucy_requests_total[5m]) * 60", "legendFormat": "Requests/min" },
+        { "expr": "rate(dte_lucy_errors_total[5m]) * 60", "legendFormat": "Errors/min" }
+      ]
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["dte", "level5", "system5", "echobeats"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DTE System 5 — Level 5 Autonomy",
+  "uid": "dte-system5-level5",
+  "version": 1
+}
