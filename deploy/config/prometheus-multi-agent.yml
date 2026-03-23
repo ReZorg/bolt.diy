@@ -1,0 +1,53 @@
+# DTE Level 5+ Multi-Agent Prometheus Configuration
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  # ─── DTE Agent Telemetry ────────────────────────────────────
+  - job_name: 'dte-perceiver'
+    static_configs:
+      - targets: ['dte-perceiver:9464']
+        labels:
+          agent_role: 'perceiver'
+          agent_name: 'dte-perceiver'
+
+  - job_name: 'dte-reasoner'
+    static_configs:
+      - targets: ['dte-reasoner:9464']
+        labels:
+          agent_role: 'reasoner'
+          agent_name: 'dte-reasoner'
+
+  - job_name: 'dte-actor'
+    static_configs:
+      - targets: ['dte-actor:9464']
+        labels:
+          agent_role: 'actor'
+          agent_name: 'dte-actor'
+
+  - job_name: 'dte-reflector'
+    static_configs:
+      - targets: ['dte-reflector:9464']
+        labels:
+          agent_role: 'reflector'
+          agent_name: 'dte-reflector'
+
+  # ─── Lucy GGUF Server ──────────────────────────────────────
+  - job_name: 'lucy'
+    static_configs:
+      - targets: ['lucy:8081']
+    metrics_path: /metrics
+
+  # ─── A2A Protocol Metrics ──────────────────────────────────
+  - job_name: 'a2a-mesh'
+    static_configs:
+      - targets:
+          - 'dte-perceiver:9464'
+          - 'dte-reasoner:9464'
+          - 'dte-actor:9464'
+          - 'dte-reflector:9464'
+    metrics_path: /a2a/metrics

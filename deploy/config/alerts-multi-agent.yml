@@ -1,0 +1,81 @@
+# DTE Level 5+ Multi-Agent Alert Rules
+groups:
+  - name: dte_multi_agent_alerts
+    rules:
+      # ─── Collective Coherence ─────────────────────────────────
+      - alert: CollectiveCoherenceLow
+        expr: avg(dte_aar_coherence) < 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Collective coherence below threshold"
+          description: "Average coherence across all agents is {{ $value }}"
+
+      - alert: CollectiveCoherenceCritical
+        expr: avg(dte_aar_coherence) < 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Collective coherence critically low"
+
+      # ─── A2A Mesh Health ──────────────────────────────────────
+      - alert: AgentDisconnected
+        expr: up{job=~"dte-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DTE agent {{ $labels.agent_name }} is down"
+
+      - alert: A2AMessageBacklog
+        expr: dte_a2a_pending_queries > 50
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A2A message backlog on {{ $labels.agent_name }}"
+
+      - alert: ConsensusFailureRate
+        expr: rate(dte_consensus_rejected_total[10m]) > rate(dte_consensus_achieved_total[10m])
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Consensus failure rate exceeds success rate"
+
+      # ─── Memory Health ────────────────────────────────────────
+      - alert: HypergraphMemoryFull
+        expr: dte_memory_atom_count > 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hypergraph memory exceeds 1M atoms on {{ $labels.agent_name }}"
+
+      - alert: ECANAttentionStagnant
+        expr: rate(dte_ecan_decay_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ECAN attention cycle stalled on {{ $labels.agent_name }}"
+
+      # ─── Role Health ──────────────────────────────────────────
+      - alert: RoleImbalance
+        expr: count(dte_agent_role) < 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Less than 4 agent roles active in the collective"
+
+      # ─── Lucy Shared Server ───────────────────────────────────
+      - alert: LucyOverloaded
+        expr: rate(llama_requests_total[1m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Lucy server handling >10 req/s — consider scaling"

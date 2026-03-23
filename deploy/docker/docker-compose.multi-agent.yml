@@ -1,0 +1,189 @@
+###############################################################################
+# DTE Level 5+ Multi-Agent Deployment Topology
+#
+# Deploys 4 DTE instances (System 5 tetradic) with:
+#   - Shared Lucy GGUF server (llama.cpp)
+#   - Shared Neon PostgreSQL (dte-hypergraph-memory)
+#   - A2A mesh network on ports 9470-9473
+#   - Prometheus + Grafana monitoring
+#
+# Agent Roles:
+#   dte-perceiver (port 5173, A2A 9470) — Input gathering, semantic search
+#   dte-reasoner  (port 5174, A2A 9471) — PLN inference, hypothesis generation
+#   dte-actor     (port 5175, A2A 9472) — Action execution, response generation
+#   dte-reflector (port 5176, A2A 9473) — Meta-cognition, evolution coordination
+#
+# Usage:
+#   cp .env.example .env  # Configure NEON_URL, LUCY_MODEL_URL
+#   docker compose -f docker-compose.multi-agent.yml up -d
+###############################################################################
+
+name: dte-multi-agent
+
+x-dte-common: &dte-common
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  environment: &dte-env
+    NODE_ENV: production
+    DTE_NEON_URL: ${DTE_NEON_URL}
+    DTE_LUCY_URL: http://lucy:8081
+    DTE_EMBEDDING_DIM: ${DTE_EMBEDDING_DIM:-384}
+  depends_on:
+    lucy:
+      condition: service_healthy
+  networks:
+    - dte-mesh
+  healthcheck:
+    test: ["CMD", "curl", "-sf", "http://localhost:9464/health"]
+    interval: 15s
+    timeout: 5s
+    retries: 3
+
+services:
+  # ─── Shared Lucy GGUF Server ──────────────────────────────
+  lucy:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: dte-lucy
+    restart: unless-stopped
+    ports:
+      - "${LUCY_PORT:-8081}:8081"
+    volumes:
+      - lucy-models:/models
+    environment:
+      LLAMA_ARG_MODEL: /models/${LUCY_MODEL_FILE:-lucy_128k-Q4_K_M.gguf}
+      LLAMA_ARG_CTX_SIZE: ${LUCY_CTX_SIZE:-32768}
+      LLAMA_ARG_N_GPU_LAYERS: ${LUCY_GPU_LAYERS:-99}
+      LLAMA_ARG_HOST: 0.0.0.0
+      LLAMA_ARG_PORT: 8081
+      LLAMA_ARG_THREADS: ${LUCY_THREADS:-8}
+      LLAMA_ARG_PARALLEL: 4
+      LLAMA_ARG_CONT_BATCHING: "true"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    networks:
+      - dte-mesh
+
+  # ─── DTE Perceiver (Agent 1) ──────────────────────────────
+  dte-perceiver:
+    <<: *dte-common
+    container_name: dte-perceiver
+    ports:
+      - "5173:5173"
+      - "9470:9464"
+    environment:
+      <<: *dte-env
+      DTE_AGENT_NAME: dte-perceiver
+      DTE_AGENT_ROLE: perceiver
+      DTE_A2A_PORT: 9464
+      DTE_A2A_PEERS: http://dte-reasoner:9464,http://dte-actor:9464,http://dte-reflector:9464
+      DTE_WEB_PORT: 5173
+      DTE_TELEMETRY_PORT: 9464
+
+  # ─── DTE Reasoner (Agent 2) ───────────────────────────────
+  dte-reasoner:
+    <<: *dte-common
+    container_name: dte-reasoner
+    ports:
+      - "5174:5173"
+      - "9471:9464"
+    environment:
+      <<: *dte-env
+      DTE_AGENT_NAME: dte-reasoner
+      DTE_AGENT_ROLE: reasoner
+      DTE_A2A_PORT: 9464
+      DTE_A2A_PEERS: http://dte-perceiver:9464,http://dte-actor:9464,http://dte-reflector:9464
+      DTE_WEB_PORT: 5173
+      DTE_TELEMETRY_PORT: 9464
+
+  # ─── DTE Actor (Agent 3) ──────────────────────────────────
+  dte-actor:
+    <<: *dte-common
+    container_name: dte-actor
+    ports:
+      - "5175:5173"
+      - "9472:9464"
+    environment:
+      <<: *dte-env
+      DTE_AGENT_NAME: dte-actor
+      DTE_AGENT_ROLE: actor
+      DTE_A2A_PORT: 9464
+      DTE_A2A_PEERS: http://dte-perceiver:9464,http://dte-reasoner:9464,http://dte-reflector:9464
+      DTE_WEB_PORT: 5173
+      DTE_TELEMETRY_PORT: 9464
+
+  # ─── DTE Reflector (Agent 4 — Coordinator) ────────────────
+  dte-reflector:
+    <<: *dte-common
+    container_name: dte-reflector
+    ports:
+      - "5176:5173"
+      - "9473:9464"
+    environment:
+      <<: *dte-env
+      DTE_AGENT_NAME: dte-reflector
+      DTE_AGENT_ROLE: reflector
+      DTE_A2A_PORT: 9464
+      DTE_A2A_PEERS: http://dte-perceiver:9464,http://dte-reasoner:9464,http://dte-actor:9464
+      DTE_WEB_PORT: 5173
+      DTE_TELEMETRY_PORT: 9464
+
+  # ─── Prometheus ────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: dte-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ../config/prometheus-multi-agent.yml:/etc/prometheus/prometheus.yml:ro
+      - ../config/alerts-multi-agent.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - dte-mesh
+
+  # ─── Grafana ───────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: dte-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-dte-multi-agent}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - dte-mesh
+
+volumes:
+  lucy-models:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  dte-mesh:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
